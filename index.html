@@ -221,6 +221,39 @@
       font-family: monospace;
       font-size: 16px;
     }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    
+    .button-group button {
+      flex: 1;
+    }
+    
+    .pause-button {
+      background-color: #ed8936;
+    }
+    
+    .pause-button:hover {
+      background-color: #dd6b20;
+    }
+    
+    .resume-button {
+      background-color: #48bb78;
+    }
+    
+    .resume-button:hover {
+      background-color: #38a169;
+    }
+    
+    .paused-indicator {
+      color: #ed8936;
+      font-weight: bold;
+      margin-top: 8px;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -232,6 +265,7 @@
       <div class="earnings-amount" id="earnings">0.00 kr</div>
       <div class="rate-info">Base rate: 284.49 kr/hr</div>
       <div class="current-per-hour" id="currentPerHour">Current: 284.49 kr/hr</div>
+      <div class="paused-indicator" id="pausedIndicator">⏸️ TIMER PAUSED</div>
     </div>
     
     <div class="status-card">
@@ -270,7 +304,10 @@
       </div>
     </div>
     
-    <button type="button" id="updateButton">Update Start Time</button>
+    <div class="button-group">
+      <button type="button" id="updateButton">Update Start Time</button>
+      <button type="button" id="pauseButton" class="pause-button">Pause Timer</button>
+    </div>
     
     <div class="datetime-display">
       <div class="datetime-label">Current Date & Time:</div>
@@ -334,6 +371,9 @@
       let timerInterval = null;
       let clockInterval = null;
       let currentRate = 1;
+      let isPaused = false;
+      let pauseStartTime = null;
+      let totalPausedTime = 0;
       
       // DOM Elements
       const earningsElement = document.getElementById('earnings');
@@ -346,6 +386,8 @@
       const startMinuteInput = document.getElementById('startMinute');
       const startAmPmInput = document.getElementById('startAmPm');
       const updateButton = document.getElementById('updateButton');
+      const pauseButton = document.getElementById('pauseButton');
+      const pausedIndicator = document.getElementById('pausedIndicator');
       const moneyBg = document.getElementById('money-bg');
       
       // Projection calculator elements
@@ -525,10 +567,40 @@
       
       // Update earnings based on elapsed time
       function updateEarnings() {
-        const elapsedSeconds = (Date.now() - startTime) / 1000;
+        if (isPaused) return; // Don't update if paused
+        
+        const elapsedSeconds = (Date.now() - startTime - totalPausedTime) / 1000;
         const elapsedHours = elapsedSeconds / 3600;
         const earned = elapsedHours * baseHourlyRate * currentRate;
         earningsElement.textContent = `${earned.toFixed(2)} kr`;
+      }
+      
+      // Toggle pause/resume
+      function togglePause() {
+        if (isPaused) {
+          // Resume timer
+          const pauseDuration = Date.now() - pauseStartTime;
+          totalPausedTime += pauseDuration;
+          isPaused = false;
+          pauseButton.textContent = "Pause Timer";
+          pauseButton.classList.remove("resume-button");
+          pauseButton.classList.add("pause-button");
+          pausedIndicator.style.display = "none";
+          
+          // Restart timer
+          timerInterval = setInterval(updateEarnings, 1000);
+        } else {
+          // Pause timer
+          isPaused = true;
+          pauseStartTime = Date.now();
+          pauseButton.textContent = "Resume Timer";
+          pauseButton.classList.remove("pause-button");
+          pauseButton.classList.add("resume-button");
+          pausedIndicator.style.display = "block";
+          
+          // Stop timer
+          clearInterval(timerInterval);
+        }
       }
       
       // Update start time when the button is clicked
@@ -558,6 +630,14 @@
         
         // Set the new start time
         startTime = startDate.getTime();
+        
+        // Reset pause tracking
+        isPaused = false;
+        pauseButton.textContent = "Pause Timer";
+        pauseButton.classList.remove("resume-button");
+        pauseButton.classList.add("pause-button");
+        pausedIndicator.style.display = "none";
+        totalPausedTime = 0;
         
         // Update earnings immediately
         updateEarnings();
@@ -836,6 +916,7 @@
       
       // Add event listeners
       updateButton.addEventListener('click', updateStartTime);
+      pauseButton.addEventListener('click', togglePause);
       calculateButton.addEventListener('click', calculateFutureEarnings);
       
       // Initialize dollar bills
