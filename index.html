@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>C.R.E.A.M. Wage Calculator</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    
+    body {
+      background-color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    /* Dollar bill animation */
+    @keyframes fall {
+      0% {
+        transform: translateY(-150px) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(calc(100vh + 150px)) rotate(20deg);
+        opacity: 0.7;
+      }
+    }
+    
+    .money-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      z-index: -1;
+    }
+    
+    .dollar {
+      position: absolute;
+      width: 40px;
+      height: 20px;
+      background-color: #85bb65;
+      border: 1px solid #508241;
+      border-radius: 2px;
+      z-index: -1;
+      animation: fall linear infinite;
+      animation-duration: 10s;
+      opacity: 0.8;
+      color: transparent;
+      box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    }
+    
+    .dollar::before {
+      content: "$";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #508241;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    
+    .container {
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      max-width: 450px;
+      width: 100%;
+      padding: 24px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 5;
+    }
+    
+    .section-divider {
+      border-top: 1px solid #e2e8f0;
+      margin: 32px 0 24px 0;
+    }
+    
+    .section-title {
+      color: #0e766e;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    
+    h1 {
+      color: #0e766e;
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    
+    .earnings-display {
+      background-color: #e6fffa;
+      border-radius: 8px;
+      margin-bottom: 32px;
+      padding: 16px;
+      text-align: center;
+    }
+    
+    .earnings-amount {
+      color: #0e766e;
+      font-size: 36px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    
+    .rate-info {
+      color: #718096;
+      font-size: 14px;
+    }
+    
+    .current-per-hour {
+      color: #0e766e;
+      font-size: 16px;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+    
+    .status-card {
+      background-color: #f7fafc;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      padding: 12px;
+    }
+    
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    
+    .status-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .status-label {
+      font-weight: 500;
+    }
+    
+    .start-time-card {
+      background-color: #f7fafc;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      padding: 12px;
+    }
+    
+    .start-time-header {
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    
+    .start-time-inputs {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .time-input {
+      flex: 1;
+    }
+    
+    .time-input label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    
+    .time-input input, .time-input select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+    }
+    
+    button {
+      background-color: #0e766e;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 500;
+      padding: 12px;
+      transition: background-color 0.2s;
+      width: 100%;
+    }
+    
+    button:hover {
+      background-color: #0c6259;
+    }
+    
+    .datetime-display {
+      background-color: #f7fafc;
+      border-radius: 8px;
+      margin-top: 16px;
+      padding: 12px;
+      text-align: center;
+    }
+    
+    .datetime-label {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    
+    .datetime-value {
+      font-family: monospace;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="money-bg" id="money-bg"></div>
+  <div class="container">
+    <h1>C.R.E.A.M. 💵</h1>
+    
+    <div class="earnings-display">
+      <div class="earnings-amount" id="earnings">0.00 kr</div>
+      <div class="rate-info">Base rate: 284.49 kr/hr</div>
+      <div class="current-per-hour" id="currentPerHour">Current: 284.49 kr/hr</div>
+    </div>
+    
+    <div class="status-card">
+      <div class="status-row">
+        <span class="status-label">Current day:</span>
+        <span id="currentDay">-</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Time period:</span>
+        <span id="currentTimeRange">-</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Compensation rate:</span>
+        <span id="currentRate">-</span>
+      </div>
+    </div>
+    
+    <div class="start-time-card">
+      <div class="start-time-header">Set start time:</div>
+      <div class="start-time-inputs">
+        <div class="time-input">
+          <label for="startHour">Hour:</label>
+          <input type="number" id="startHour" min="0" max="23" value="0">
+        </div>
+        <div class="time-input">
+          <label for="startMinute">Minute:</label>
+          <input type="number" id="startMinute" min="0" max="59" value="0">
+        </div>
+        <div class="time-input">
+          <label for="startAmPm">AM/PM:</label>
+          <select id="startAmPm">
+            <option value="am">AM</option>
+            <option value="pm">PM</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    
+    <button type="button" id="updateButton">Update Start Time</button>
+    
+    <div class="datetime-display">
+      <div class="datetime-label">Current Date & Time:</div>
+      <div class="datetime-value" id="currentDateTime">-</div>
+    </div>
+    
+    <div class="section-divider"></div>
+    
+    <div class="section-title">Wage Projection Calculator</div>
+    
+    <div class="start-time-card">
+      <div class="start-time-header">Calculate future earnings:</div>
+      <div class="status-row" style="margin-bottom: 12px;">
+        <span class="status-label">Day type:</span>
+        <select id="dayType" style="padding: 6px; border-radius: 4px; border: 1px solid #d1d5db; width: 60%;">
+          <option value="weekday">Monday-Thursday</option>
+          <option value="friday">Friday</option>
+          <option value="saturday">Saturday</option>
+          <option value="sunday">Sunday</option>
+          <option value="holiday">Holiday</option>
+        </select>
+      </div>
+      
+      <div class="start-time-inputs" style="margin-bottom: 12px;">
+        <div class="time-input">
+          <label for="fromHour">From (hour):</label>
+          <input type="number" id="fromHour" min="0" max="23" value="9">
+        </div>
+        <div class="time-input">
+          <label for="fromMinute">Minute:</label>
+          <input type="number" id="fromMinute" min="0" max="59" value="0">
+        </div>
+      </div>
+      
+      <div class="start-time-inputs">
+        <div class="time-input">
+          <label for="toHour">To (hour):</label>
+          <input type="number" id="toHour" min="0" max="23" value="17">
+        </div>
+        <div class="time-input">
+          <label for="toMinute">Minute:</label>
+          <input type="number" id="toMinute" min="0" max="59" value="0">
+        </div>
+      </div>
+    </div>
+    
+    <button type="button" id="calculateButton">Calculate Earnings</button>
+    
+    <div class="earnings-display" style="margin-top: 16px;">
+      <div class="rate-info">Projected earnings:</div>
+      <div class="earnings-amount" id="projectedEarnings">0.00 kr</div>
+      <div class="current-per-hour" id="projectionDetails">-</div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      // Constants and variables
+      const baseHourlyRate = 284.49;
+      let startTime = Date.now();
+      let timerInterval = null;
+      let clockInterval = null;
+      let currentRate = 1;
+      
+      // DOM Elements
+      const earningsElement = document.getElementById('earnings');
+      const currentPerHourElement = document.getElementById('currentPerHour');
+      const currentDayElement = document.getElementById('currentDay');
+      const currentTimeRangeElement = document.getElementById('currentTimeRange');
+      const currentRateElement = document.getElementById('currentRate');
+      const currentDateTimeElement = document.getElementById('currentDateTime');
+      const startHourInput = document.getElementById('startHour');
+      const startMinuteInput = document.getElementById('startMinute');
+      const startAmPmInput = document.getElementById('startAmPm');
+      const updateButton = document.getElementById('updateButton');
+      const moneyBg = document.getElementById('money-bg');
+      
+      // Projection calculator elements
+      const dayTypeSelect = document.getElementById('dayType');
+      const fromHourInput = document.getElementById('fromHour');
+      const fromMinuteInput = document.getElementById('fromMinute');
+      const toHourInput = document.getElementById('toHour');
+      const toMinuteInput = document.getElementById('toMinute');
+      const calculateButton = document.getElementById('calculateButton');
+      const projectedEarningsElement = document.getElementById('projectedEarnings');
+      const projectionDetailsElement = document.getElementById('projectionDetails');
+      
+      // Compensation rates based on the provided chart
+      const compensationRates = {
+        'monday': [
+          { range: '06:00-08:00', rate: 1.25 },
+          { range: '08:00-16:00', rate: 1.00 },
+          { range: '16:00-18:00', rate: 1.25 },
+          { range: '18:00-21:00', rate: 1.30 },
+          { range: '21:00-06:00', rate: 2.00 },
+          { range: 'default', rate: 1.00 }
+        ],
+        'tuesday': [
+          { range: '06:00-08:00', rate: 1.25 },
+          { range: '08:00-16:00', rate: 1.00 },
+          { range: '16:00-18:00', rate: 1.25 },
+          { range: '18:00-21:00', rate: 1.30 },
+          { range: '21:00-06:00', rate: 2.00 },
+          { range: 'default', rate: 1.00 }
+        ],
+        'wednesday': [
+          { range: '06:00-08:00', rate: 1.25 },
+          { range: '08:00-16:00', rate: 1.00 },
+          { range: '16:00-18:00', rate: 1.25 },
+          { range: '18:00-21:00', rate: 1.30 },
+          { range: '21:00-06:00', rate: 2.00 },
+          { range: 'default', rate: 1.00 }
+        ],
+        'thursday': [
+          { range: '06:00-08:00', rate: 1.25 },
+          { range: '08:00-16:00', rate: 1.00 },
+          { range: '16:00-18:00', rate: 1.25 },
+          { range: '18:00-21:00', rate: 1.30 },
+          { range: '21:00-06:00', rate: 2.00 },
+          { range: 'default', rate: 1.00 }
+        ],
+        'friday': [
+          { range: '06:00-08:00', rate: 1.25 },
+          { range: '08:00-16:00', rate: 1.00 },
+          { range: '16:00-21:00', rate: 1.50 },
+          { range: '21:00-06:00', rate: 2.00 },
+          { range: 'default', rate: 1.00 }
+        ],
+        'saturday': [
+          { range: '00:00-06:00', rate: 2.00 },
+          { range: '06:00-15:30', rate: 2.00 },
+          { range: '15:30-24:00', rate: 2.20 },
+          { range: 'default', rate: 2.00 }
+        ],
+        'sunday': [
+          { range: '00:00-24:00', rate: 2.20 },
+          { range: 'default', rate: 2.20 }
+        ],
+        'holiday': [
+          { range: '00:00-24:00', rate: 2.50 },
+          { range: 'default', rate: 2.50 }
+        ]
+      };
+      
+      // Helper to convert time string (HH:MM) to minutes
+      function convertToMinutes(timeStr) {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+      }
+      
+      // Helper to check if a time is within a range
+      function isTimeInRange(time, start, end) {
+        // Convert times to minutes for easier comparison
+        const timeMinutes = convertToMinutes(time);
+        const startMinutes = convertToMinutes(start);
+        let endMinutes = convertToMinutes(end);
+        
+        // Handle overnight ranges (e.g., 21:00-06:00)
+        if (endMinutes < startMinutes) {
+          endMinutes += 24 * 60; // Add 24 hours
+          
+          // If time is after midnight, add 24 hours
+          const timeHours = parseInt(time.split(':')[0]);
+          let adjustedTimeMinutes = timeMinutes;
+          
+          if (timeHours < 12 && startMinutes > 12 * 60) {
+            adjustedTimeMinutes += 24 * 60;
+          }
+          
+          return adjustedTimeMinutes >= startMinutes || timeMinutes <= endMinutes;
+        }
+        
+        return timeMinutes >= startMinutes && timeMinutes <= endMinutes;
+      }
+      
+      // Check if today is a holiday (Norwegian holidays)
+      function isHoliday() {
+        const now = new Date();
+        const month = now.getMonth(); // 0-11
+        const date = now.getDate();
+        
+        // List of fixed Norwegian holidays
+        // January 1 - New Year's Day
+        if (month === 0 && date === 1) return true;
+        
+        // May 1 - Labor Day
+        if (month === 4 && date === 1) return true;
+        
+        // May 17 - Constitution Day
+        if (month === 4 && date === 17) return true;
+        
+        // December 25 - Christmas Day
+        if (month === 11 && date === 25) return true;
+        
+        // December 26 - Boxing Day
+        if (month === 11 && date === 26) return true;
+        
+        return false;
+      }
+      
+      // Get current day and time to determine compensation rate
+      function getCurrentRateInfo() {
+        const now = new Date();
+        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const day = days[now.getDay()];
+        
+        // Format current time as HH:MM
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const currentTime = `${hours}:${minutes}`;
+        
+        // Check if it's a holiday
+        if (isHoliday()) {
+          currentDayElement.textContent = 'Holiday (Helligdag)';
+          currentTimeRangeElement.textContent = '00:00-24:00';
+          return 2.50; // 150% compensation
+        }
+        
+        // Get rate for current day and time
+        const dayRates = compensationRates[day] || compensationRates['monday']; // Default to Monday if not found
+        
+        for (const period of dayRates) {
+          if (period.range === 'default') continue;
+          
+          const [start, end] = period.range.split('-');
+          
+          // Check if current time is within this range
+          if (isTimeInRange(currentTime, start, end)) {
+            currentDayElement.textContent = day.charAt(0).toUpperCase() + day.slice(1);
+            currentTimeRangeElement.textContent = period.range;
+            return period.rate;
+          }
+        }
+        
+        // If no specific range found, return default rate for this day
+        const defaultRate = dayRates.find(r => r.range === 'default')?.rate || 1.0;
+        currentDayElement.textContent = day.charAt(0).toUpperCase() + day.slice(1);
+        currentTimeRangeElement.textContent = 'Regular hours';
+        return defaultRate;
+      }
+      
+      // Update the current date and time display
+      function updateDateTime() {
+        const now = new Date();
+        currentDateTimeElement.textContent = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+        
+        // Update rate
+        const rate = getCurrentRateInfo();
+        currentRate = rate;
+        currentRateElement.textContent = `${((rate * 100) - 100).toFixed(0)}%`;
+        currentPerHourElement.textContent = `Current: ${(baseHourlyRate * rate).toFixed(2)} kr/hr`;
+        
+        // Update earnings
+        updateEarnings();
+      }
+      
+      // Update earnings based on elapsed time
+      function updateEarnings() {
+        const elapsedSeconds = (Date.now() - startTime) / 1000;
+        const elapsedHours = elapsedSeconds / 3600;
+        const earned = elapsedHours * baseHourlyRate * currentRate;
+        earningsElement.textContent = `${earned.toFixed(2)} kr`;
+      }
+      
+      // Update start time when the button is clicked
+      function updateStartTime() {
+        const hour = parseInt(startHourInput.value) || 0;
+        const minute = parseInt(startMinuteInput.value) || 0;
+        const amPm = startAmPmInput.value;
+        
+        // Create a new date object for today
+        const now = new Date();
+        const startDate = new Date(now);
+        
+        // Set the time based on inputs (convert from 12-hour to 24-hour format if needed)
+        let hourValue = hour;
+        if (amPm === 'pm' && hour < 12) {
+          hourValue = hour + 12;
+        } else if (amPm === 'am' && hour === 12) {
+          hourValue = 0;
+        }
+        
+        startDate.setHours(hourValue, minute, 0, 0);
+        
+        // If start time is in the future, assume it's for yesterday
+        if (startDate > now) {
+          startDate.setDate(startDate.getDate() - 1);
+        }
+        
+        // Set the new start time
+        startTime = startDate.getTime();
+        
+        // Update earnings immediately
+        updateEarnings();
+      }
+      
+      // Calculate future earnings based on day type and time range
+      function calculateFutureEarnings() {
+        // Get input values
+        const dayType = dayTypeSelect.value;
+        const fromHour = parseInt(fromHourInput.value) || 0;
+        const fromMinute = parseInt(fromMinuteInput.value) || 0;
+        const toHour = parseInt(toHourInput.value) || 0;
+        const toMinute = parseInt(toMinuteInput.value) || 0;
+        
+        // Format times for display
+        const fromTime = `${fromHour.toString().padStart(2, '0')}:${fromMinute.toString().padStart(2, '0')}`;
+        const toTime = `${toHour.toString().padStart(2, '0')}:${toMinute.toString().padStart(2, '0')}`;
+        
+        // Calculate duration in hours
+        let durationHours = 0;
+        if (toHour > fromHour || (toHour === fromHour && toMinute >= fromMinute)) {
+          // Same day
+          durationHours = (toHour - fromHour) + (toMinute - fromMinute) / 60;
+        } else {
+          // Overnight (next day)
+          durationHours = (24 - fromHour + toHour) + (toMinute - fromMinute) / 60;
+        }
+        
+        // Get rates based on day type
+        let rates = [];
+        if (dayType === 'weekday') {
+          rates = compensationRates['monday']; // Monday-Thursday use same rates
+        } else if (dayType === 'friday') {
+          rates = compensationRates['friday'];
+        } else if (dayType === 'saturday') {
+          rates = compensationRates['saturday'];
+        } else if (dayType === 'sunday') {
+          rates = compensationRates['sunday'];
+        } else if (dayType === 'holiday') {
+          rates = compensationRates['holiday'];
+        }
+        
+        // Track earnings for each segment
+        let totalEarnings = 0;
+        let segments = [];
+        
+        // Start at the from time
+        let currentHour = fromHour;
+        let currentMinute = fromMinute;
+        let hoursRemaining = durationHours;
+        
+        while (hoursRemaining > 0) {
+          // Format current time for rate lookup
+          const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+          
+          // Find applicable rate for this time
+          let rate = 1.0; // Default rate
+          let rateDescription = 'Regular';
+          
+          for (const period of rates) {
+            if (period.range === 'default') continue;
+            
+            const [start, end] = period.range.split('-');
+            
+            if (isTimeInRange(currentTime, start, end)) {
+              rate = period.rate;
+              rateDescription = period.range;
+              break;
+            }
+          }
+          
+          // Determine how many hours until next rate change or until end time
+          let hoursInSegment = 0;
+          
+          // If this is a fixed rate for the entire day (like Sunday or Holiday)
+          if (rates.length === 2 && rates[0].range === '00:00-24:00') {
+            hoursInSegment = hoursRemaining;
+          } else {
+            // Find next rate change time
+            let nextChangeHour = 24;
+            let nextChangeMinute = 0;
+            
+            for (const period of rates) {
+              if (period.range === 'default') continue;
+              
+              const [start, _] = period.range.split('-');
+              const [startHour, startMinute] = start.split(':').map(Number);
+              
+              // If this is a future start time that's closer than what we've found so far
+              if ((startHour > currentHour || (startHour === currentHour && startMinute > currentMinute)) &&
+                  (startHour < nextChangeHour || (startHour === nextChangeHour && startMinute < nextChangeMinute))) {
+                nextChangeHour = startHour;
+                nextChangeMinute = startMinute;
+              }
+            }
+            
+            // Calculate hours until next rate change
+            let hoursUntilChange = 0;
+            if (nextChangeHour > currentHour || (nextChangeHour === currentHour && nextChangeMinute > currentMinute)) {
+              // Within same day
+              hoursUntilChange = (nextChangeHour - currentHour) + (nextChangeMinute - currentMinute) / 60;
+            } else if (nextChangeHour < currentHour || (nextChangeHour === currentHour && nextChangeMinute <= currentMinute)) {
+              // Next day
+              hoursUntilChange = (24 - currentHour + nextChangeHour) + (nextChangeMinute - currentMinute) / 60;
+            }
+            
+            // Use either the time until next rate change or remaining hours, whichever is smaller
+            hoursInSegment = Math.min(hoursUntilChange, hoursRemaining);
+          }
+          
+          // Calculate earnings for this segment
+          const segmentEarnings = hoursInSegment * baseHourlyRate * rate;
+          
+          // Add to total
+          totalEarnings += segmentEarnings;
+          
+          // Track this segment for display
+          segments.push({
+            time: currentTime,
+            hours: hoursInSegment.toFixed(2),
+            rate: `${((rate * 100) - 100).toFixed(0)}%`,
+            rateDescription: rateDescription,
+            earnings: segmentEarnings.toFixed(2)
+          });
+          
+          // Move to next segment
+          hoursRemaining -= hoursInSegment;
+          
+          // Advance current time
+          const minutesToAdd = hoursInSegment * 60;
+          currentMinute += minutesToAdd % 60;
+          currentHour += Math.floor(minutesToAdd / 60) + Math.floor(currentMinute / 60);
+          currentMinute = currentMinute % 60;
+          currentHour = currentHour % 24;
+        }
+        
+        // Display results
+        projectedEarningsElement.textContent = `${totalEarnings.toFixed(2)} kr`;
+        
+        // Show breakdown
+        let details = `${fromTime} to ${toTime} (${durationHours.toFixed(2)} hours)`;
+        if (segments.length > 1) {
+          details += `<br>Breakdown: `;
+          segments.forEach((segment, index) => {
+            if (index > 0) details += ' + ';
+            details += `${segment.hours}h at ${segment.rate}`;
+          });
+        } else {
+          details += `<br>Rate: ${segments[0].rate} (${segments[0].rateDescription})`;
+        }
+        
+        projectionDetailsElement.innerHTML = details;
+      }
+      
+      // Create the falling dollar bills
+      function createDollarBills() {
+        // Clear any existing bills
+        moneyBg.innerHTML = '';
+        
+        // Create 20 dollar bills
+        for (let i = 0; i < 20; i++) {
+          const dollar = document.createElement('div');
+          dollar.className = 'dollar';
+          
+          // Random horizontal position
+          dollar.style.left = `${Math.random() * 100}%`;
+          
+          // Random animation duration (between 8 and 15 seconds)
+          const duration = 8 + Math.random() * 7;
+          dollar.style.animationDuration = `${duration}s`;
+          
+          // Random delay (so they don't all start at once)
+          const delay = Math.random() * 15;
+          dollar.style.animationDelay = `${delay}s`;
+          
+          // Random size variation
+          const size = 0.8 + Math.random() * 0.4;
+          dollar.style.transform = `scale(${size})`;
+          
+          moneyBg.appendChild(dollar);
+        }
+      }
+      
+      // Initialize the clock
+      clockInterval = setInterval(updateDateTime, 1000);
+      updateDateTime();
+      
+      // Get initial rate info
+      const initialRate = getCurrentRateInfo();
+      currentRateElement.textContent = `${((initialRate * 100) - 100).toFixed(0)}%`;
+      currentPerHourElement.textContent = `Current: ${(baseHourlyRate * initialRate).toFixed(2)} kr/hr`;
+      
+      // Start the timer to update earnings
+      timerInterval = setInterval(updateEarnings, 1000);
+      
+      // Add event listeners
+      updateButton.addEventListener('click', updateStartTime);
+      calculateButton.addEventListener('click', calculateFutureEarnings);
+      
+      // Initialize dollar bills
+      createDollarBills();
+    })();
+  </script>
+</body>
+</html>
