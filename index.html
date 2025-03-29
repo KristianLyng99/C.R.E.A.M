@@ -421,7 +421,7 @@
         return hours * 60 + minutes;
       }
       
-      // Helper to check if a time is within a range
+      // Helper to check if a time is within a range - FIXED VERSION
       function isTimeInRange(time, start, end) {
         // Convert times to minutes for easier comparison
         const timeMinutes = convertToMinutes(time);
@@ -430,20 +430,16 @@
         
         // Handle overnight ranges (e.g., 21:00-06:00)
         if (endMinutes < startMinutes) {
-          endMinutes += 24 * 60; // Add 24 hours
-          
-          // If time is after midnight, add 24 hours
-          const timeHours = parseInt(time.split(':')[0]);
-          let adjustedTimeMinutes = timeMinutes;
-          
-          if (timeHours < 12 && startMinutes > 12 * 60) {
-            adjustedTimeMinutes += 24 * 60;
-          }
-          
-          return adjustedTimeMinutes >= startMinutes || timeMinutes <= endMinutes;
+          // For overnight ranges, check if time is either:
+          // 1. Between start time and midnight, OR
+          // 2. Between midnight and end time
+          return (timeMinutes >= startMinutes && timeMinutes < 24 * 60) || 
+                (timeMinutes >= 0 && timeMinutes < endMinutes);
         }
         
-        return timeMinutes >= startMinutes && timeMinutes <= endMinutes;
+        // For same-day ranges, check if time is between start and end
+        // Note the < instead of <= for end time to avoid double-counting boundaries
+        return timeMinutes >= startMinutes && timeMinutes < endMinutes;
       }
       
       // Check if today is a holiday (Norwegian holidays)
@@ -567,6 +563,34 @@
         updateEarnings();
       }
       
+      // Helper function to format time for display
+      function formatTime(hour, minute) {
+        return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      }
+      
+      // Helper function to find the applicable rate for a given time on a specific day
+      function findRateForTime(timeStr, dayRates) {
+        for (const period of dayRates) {
+          if (period.range === 'default') continue;
+          
+          const [start, end] = period.range.split('-');
+          
+          if (isTimeInRange(timeStr, start, end)) {
+            return { 
+              rate: period.rate, 
+              rangeDescription: period.range
+            };
+          }
+        }
+        
+        // Return default rate if no specific range found
+        const defaultRate = dayRates.find(r => r.range === 'default');
+        return { 
+          rate: defaultRate ? defaultRate.rate : 1.0, 
+          rangeDescription: 'Regular'
+        };
+      }
+      
       // Calculate future earnings based on day type and time range
       function calculateFutureEarnings() {
         // Get input values
@@ -577,8 +601,8 @@
         const toMinute = parseInt(toMinuteInput.value) || 0;
         
         // Format times for display
-        const fromTime = `${fromHour.toString().padStart(2, '0')}:${fromMinute.toString().padStart(2, '0')}`;
-        const toTime = `${toHour.toString().padStart(2, '0')}:${toMinute.toString().padStart(2, '0')}`;
+        const fromTime = formatTime(fromHour, fromMinute);
+        const toTime = formatTime(toHour, toMinute);
         
         // Calculate duration in hours
         let durationHours = 0;
@@ -591,111 +615,164 @@
         }
         
         // Get rates based on day type
-        let rates = [];
+        let dayRates = [];
         if (dayType === 'weekday') {
-          rates = compensationRates['monday']; // Monday-Thursday use same rates
+          dayRates = compensationRates['monday']; // Monday-Thursday use same rates
         } else if (dayType === 'friday') {
-          rates = compensationRates['friday'];
+          dayRates = compensationRates['friday'];
         } else if (dayType === 'saturday') {
-          rates = compensationRates['saturday'];
+          dayRates = compensationRates['saturday'];
         } else if (dayType === 'sunday') {
-          rates = compensationRates['sunday'];
+          dayRates = compensationRates['sunday'];
         } else if (dayType === 'holiday') {
-          rates = compensationRates['holiday'];
+          dayRates = compensationRates['holiday'];
         }
         
         // Track earnings for each segment
         let totalEarnings = 0;
         let segments = [];
         
-        // Start at the from time
-        let currentHour = fromHour;
-        let currentMinute = fromMinute;
-        let hoursRemaining = durationHours;
+        // Create a list of all time points where rates change
+        let timePoints = [];
         
-        while (hoursRemaining > 0) {
-          // Format current time for rate lookup
-          const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+        // Add start and end times
+        timePoints.push({
+          hour: fromHour,
+          minute: fromMinute
+        });
+        
+        // Add rate change times
+        for (const period of dayRates) {
+          if (period.range === 'default') continue;
+          
+          // Get start time from range
+          const [start, end] = period.range.split('-');
+          const [startHour, startMinute] = start.split(':').map(Number);
+          const [endHour, endMinute] = end.split(':').map(Number);
+          
+          // Add start time if it's between from and to
+          let startInMinutes = startHour * 60 + startMinute;
+          let fromInMinutes = fromHour * 60 + fromMinute;
+          let toInMinutes = toHour * 60 + toMinute;
+          
+          // Handle overnight periods
+          if (toInMinutes < fromInMinutes) {
+            toInMinutes += 24 * 60; // Add 24 hours
+          }
+          
+          // Check if the rate change point is within our time range
+          let isWithinRange = false;
+          
+          // For normal startInMinutes
+          if (startInMinutes >= fromInMinutes && startInMinutes < toInMinutes) {
+            isWithinRange = true;
+          }
+          // For overnight startInMinutes (next day)
+          else if (startInMinutes < fromInMinutes && toInMinutes > 24 * 60) {
+            let adjustedStartInMinutes = startInMinutes + 24 * 60;
+            if (adjustedStartInMinutes >= fromInMinutes && adjustedStartInMinutes < toInMinutes) {
+              isWithinRange = true;
+            }
+          }
+          
+          if (isWithinRange) {
+            timePoints.push({
+              hour: startHour,
+              minute: startMinute
+            });
+          }
+          
+          // Also add end time points
+          let endInMinutes = endHour * 60 + endMinute;
+          
+          // Check if the rate change end point is within our time range
+          isWithinRange = false;
+          
+          // For normal endInMinutes
+          if (endInMinutes > fromInMinutes && endInMinutes <= toInMinutes) {
+            isWithinRange = true;
+          }
+          // For overnight endInMinutes (next day)
+          else if (endInMinutes <= fromInMinutes && toInMinutes > 24 * 60) {
+            let adjustedEndInMinutes = endInMinutes + 24 * 60;
+            if (adjustedEndInMinutes > fromInMinutes && adjustedEndInMinutes <= toInMinutes) {
+              isWithinRange = true;
+            }
+          }
+          
+          if (isWithinRange) {
+            timePoints.push({
+              hour: endHour,
+              minute: endMinute
+            });
+          }
+        }
+        
+        // Add end time
+        timePoints.push({
+          hour: toHour,
+          minute: toMinute
+        });
+        
+        // Sort time points chronologically
+        timePoints.sort((a, b) => {
+          const aMinutes = a.hour * 60 + a.minute;
+          const bMinutes = b.hour * 60 + b.minute;
+          
+          // Handle overnight sorting
+          if (aMinutes < fromHour * 60 + fromMinute && bMinutes >= fromHour * 60 + fromMinute) {
+            return 1; // a is after midnight, b is before - so a comes after b
+          }
+          if (bMinutes < fromHour * 60 + fromMinute && aMinutes >= fromHour * 60 + fromMinute) {
+            return -1; // b is after midnight, a is before - so a comes before b
+          }
+          
+          return aMinutes - bMinutes;
+        });
+        
+        // Remove duplicates
+        timePoints = timePoints.filter((point, index, self) =>
+          index === 0 || 
+          point.hour !== self[index - 1].hour || 
+          point.minute !== self[index - 1].minute
+        );
+        
+        // Process each time segment
+        for (let i = 0; i < timePoints.length - 1; i++) {
+          const currentTime = timePoints[i];
+          const nextTime = timePoints[i + 1];
+          
+          const currentTimeStr = formatTime(currentTime.hour, currentTime.minute);
           
           // Find applicable rate for this time
-          let rate = 1.0; // Default rate
-          let rateDescription = 'Regular';
+          const { rate, rangeDescription } = findRateForTime(currentTimeStr, dayRates);
           
-          for (const period of rates) {
-            if (period.range === 'default') continue;
-            
-            const [start, end] = period.range.split('-');
-            
-            if (isTimeInRange(currentTime, start, end)) {
-              rate = period.rate;
-              rateDescription = period.range;
-              break;
-            }
+          // Calculate duration of this segment
+          let segmentHours = 0;
+          let nextMinutes = nextTime.hour * 60 + nextTime.minute;
+          let currentMinutes = currentTime.hour * 60 + currentTime.minute;
+          
+          // Handle overnight segments
+          if (nextMinutes < currentMinutes) {
+            nextMinutes += 24 * 60; // Add 24 hours
           }
           
-          // Determine how many hours until next rate change or until end time
-          let hoursInSegment = 0;
-          
-          // If this is a fixed rate for the entire day (like Sunday or Holiday)
-          if (rates.length === 2 && rates[0].range === '00:00-24:00') {
-            hoursInSegment = hoursRemaining;
-          } else {
-            // Find next rate change time
-            let nextChangeHour = 24;
-            let nextChangeMinute = 0;
-            
-            for (const period of rates) {
-              if (period.range === 'default') continue;
-              
-              const [start, _] = period.range.split('-');
-              const [startHour, startMinute] = start.split(':').map(Number);
-              
-              // If this is a future start time that's closer than what we've found so far
-              if ((startHour > currentHour || (startHour === currentHour && startMinute > currentMinute)) &&
-                  (startHour < nextChangeHour || (startHour === nextChangeHour && startMinute < nextChangeMinute))) {
-                nextChangeHour = startHour;
-                nextChangeMinute = startMinute;
-              }
-            }
-            
-            // Calculate hours until next rate change
-            let hoursUntilChange = 0;
-            if (nextChangeHour > currentHour || (nextChangeHour === currentHour && nextChangeMinute > currentMinute)) {
-              // Within same day
-              hoursUntilChange = (nextChangeHour - currentHour) + (nextChangeMinute - currentMinute) / 60;
-            } else if (nextChangeHour < currentHour || (nextChangeHour === currentHour && nextChangeMinute <= currentMinute)) {
-              // Next day
-              hoursUntilChange = (24 - currentHour + nextChangeHour) + (nextChangeMinute - currentMinute) / 60;
-            }
-            
-            // Use either the time until next rate change or remaining hours, whichever is smaller
-            hoursInSegment = Math.min(hoursUntilChange, hoursRemaining);
-          }
+          segmentHours = (nextMinutes - currentMinutes) / 60;
           
           // Calculate earnings for this segment
-          const segmentEarnings = hoursInSegment * baseHourlyRate * rate;
+          const segmentEarnings = segmentHours * baseHourlyRate * rate;
           
           // Add to total
           totalEarnings += segmentEarnings;
           
           // Track this segment for display
           segments.push({
-            time: currentTime,
-            hours: hoursInSegment.toFixed(2),
+            time: currentTimeStr,
+            duration: segmentHours.toFixed(2),
             rate: `${((rate * 100) - 100).toFixed(0)}%`,
-            rateDescription: rateDescription,
+            rateDescription: rangeDescription,
             earnings: segmentEarnings.toFixed(2)
           });
-          
-          // Move to next segment
-          hoursRemaining -= hoursInSegment;
-          
-          // Advance current time
-          const minutesToAdd = hoursInSegment * 60;
-          currentMinute += minutesToAdd % 60;
-          currentHour += Math.floor(minutesToAdd / 60) + Math.floor(currentMinute / 60);
-          currentMinute = currentMinute % 60;
-          currentHour = currentHour % 24;
         }
         
         // Display results
@@ -707,9 +784,9 @@
           details += `<br>Breakdown: `;
           segments.forEach((segment, index) => {
             if (index > 0) details += ' + ';
-            details += `${segment.hours}h at ${segment.rate}`;
+            details += `${segment.duration}h at ${segment.rate}`;
           });
-        } else {
+        } else if (segments.length === 1) {
           details += `<br>Rate: ${segments[0].rate} (${segments[0].rateDescription})`;
         }
         
